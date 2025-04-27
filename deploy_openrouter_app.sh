@@ -4,27 +4,21 @@
 set -e
 
 # --- Configuration ---
-# Set the target directory where the app will be cloned and set up
-# This should be a consistent name, e.g., inside the user's home directory
-TARGET_DIR="$HOME/openrouter-app"
+# **HARDCODED: Your GitHub Repository Details**
+# The script knows where to get the code from.
+GITHUB_USERNAME="Daniel-Farmer"
+GITHUB_REPO_NAME="Template"
+GITHUB_BRANCH="main" # Or 'master' if that's your branch
+
+TARGET_DIR="$HOME/openrouter-app" # Consistent target directory
 APP_PORT="3000" # Default port for the Node.js app
 
 # --- Introduction and User Input ---
 echo "--- OpenRouter App Deployment Script ---"
-echo "This script will set up your OpenRouter Node.js app template on this server."
+echo "This script will set up your OpenRouter Node.js app template on this server by cloning the code from GitHub."
 echo ""
 
-# Get GitHub repository details from the user
-read -p "Enter your GitHub Username: " GITHUB_USERNAME
-read -p "Enter your GitHub Repository Name (where this script and the app code are): " GITHUB_REPO_NAME
-read -p "Enter the branch name (e.g., main or master): " GITHUB_BRANCH
-
-if [ -z "$GITHUB_USERNAME" ] || [ -z "$GITHUB_REPO_NAME" ] || [ -z "$GITHUB_BRANCH" ]; then
-  echo "Error: GitHub details cannot be empty. Exiting."
-  exit 1
-fi
-
-# Get OpenRouter API Key from the user
+# --- Get OpenRouter API Key from the user (This is the ONLY thing the script asks for) ---
 read -p "Please enter your OpenRouter API Key: " OPENROUTER_API_KEY
 
 if [ -z "$OPENROUTER_API_KEY" ]; then
@@ -43,6 +37,7 @@ echo "Sudo privileges confirmed."
 # --- Install Prerequisites (if not already installed) ---
 
 echo "Installing necessary system packages (Node.js, npm, PM2, git, unzip)..."
+echo "(This may take a few minutes)"
 
 # Check and install Node.js and npm
 if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
@@ -84,39 +79,47 @@ fi
 unzip -v # Show unzip version
 
 
-# --- Clone the Repository ---
-echo "Cloning repository from https://github.com/$GITHUB_USERNAME/$GITHUB_REPO_NAME.git to $TARGET_DIR..."
+# --- Clone or Update the Repository ---
+REPO_URL="https://github.com/$GITHUB_USERNAME/$GITHUB_REPO_NAME.git"
+
+echo "Setting up repository from $REPO_URL branch $GITHUB_BRANCH in $TARGET_DIR..."
 
 # Check if the target directory already exists and is a git repo
 if [ -d "$TARGET_DIR" ] && [ -d "$TARGET_DIR/.git" ]; then
     echo "Directory $TARGET_DIR already exists and is a Git repository."
     echo "Attempting to pull latest changes..."
     cd "$TARGET_DIR"
+    # Ensure we are on the correct branch before pulling
+    git checkout "$GITHUB_BRANCH"
     if git pull origin "$GITHUB_BRANCH"; then
         echo "Git pull successful."
     else
-        echo "Error: Git pull failed. Please resolve manually in $TARGET_DIR. Exiting."
-        exit 1
+        echo "Error: Git pull failed in $TARGET_DIR. Please resolve manually if needed. Continuing setup..."
+        # Don't exit, maybe manual fixes allow setup to continue
     fi
 elif [ -d "$TARGET_DIR" ]; then
-     echo "Directory $TARGET_DIR exists but is NOT a Git repository."
-     echo "Please manually remove or rename this directory and run the script again."
+     echo "Error: Directory $TARGET_DIR exists but is NOT a Git repository."
+     echo "Please manually remove or rename this directory ('rm -rf $TARGET_DIR') and run the script again."
      exit 1
 else
     # Directory does not exist, proceed with cloning
     # Ensure the parent directory exists if needed (e.g., $HOME)
-    mkdir -p "$TARGET_DIR"
-    cd "$TARGET_DIR"
-    if git clone --depth 1 --branch "$GITHUB_BRANCH" "https://github.com/$GITHUB_USERNAME/$GITHUB_REPO_NAME.git" .; then # Clone into current dir
-        echo "Git clone successful."
+    mkdir -p "$(dirname "$TARGET_DIR")" # Ensure parent dir exists
+    # Clone into the target directory
+    if git clone --depth 1 --branch "$GITHUB_BRANCH" "$REPO_URL" "$TARGET_DIR"; then
+        echo "Git clone successful into $TARGET_DIR."
+        cd "$TARGET_DIR"
     else
-        echo "Error: Git clone failed from https://github.com/$GITHUB_USERNAME/$GITHUB_REPO_NAME.git branch $GITHUB_BRANCH. Exiting."
+        echo "Error: Git clone failed from $REPO_URL branch $GITHUB_BRANCH into $TARGET_DIR. Exiting."
         # Clean up the potentially created but incomplete directory
-        cd "$HOME" # Move out of the potentially problematic directory
-        rm -rf "$TARGET_DIR"
+        rm -rf "$TARGET_DIR" # Clean up if cloning failed
         exit 1
     fi
 fi
+
+# Ensure we are in the project directory for subsequent steps
+cd "$TARGET_DIR"
+
 
 # --- Create/Update .env file ---
 echo "Creating or updating .env file in $TARGET_DIR/.env..."
@@ -136,12 +139,14 @@ else
     echo "Please ensure your repository contains a package.json file."
 fi
 
+
 # --- Determine Project Name for PM2 ---
 # Get the name from package.json if it exists, fallback to repo name
 PROJECT_NAME="$GITHUB_REPO_NAME" # Default to repo name
 if [ -f package.json ]; then
     # Use node to parse package.json and get the name field
-    JSON_NAME=$(node -p "try { require('./package.json').name } catch(e) { '' }")
+    # Handle potential errors during JSON parsing
+    JSON_NAME=$(node -e "try { console.log(require('./package.json').name) } catch(e) { process.exit(1) }" 2>/dev/null)
     if [ -n "$JSON_NAME" ]; then # Check if JSON_NAME is not empty
         PROJECT_NAME="$JSON_NAME"
         echo "Using project name '$PROJECT_NAME' from package.json for PM2."
@@ -170,10 +175,11 @@ echo "Configuring PM2 for startup on boot..."
 # Generate the startup script command and tell the user to run it manually with sudo
 # This step often requires user interaction or different sudo context/permissions than the script itself might have.
 # Generate the command specifically for the user who ran the script
+# Ensure the command is generated correctly for systemd
 PM2_STARTUP_CMD=$(env PATH=$PATH:/usr/bin /usr/local/lib/node_modules/pm2/bin/pm2 startup systemd -u $(whoami) --hp $HOME 2>&1) # Generate systemd startup command for current user
-# Extract the actual sudo command from the output, looks like "sudo env PATH=..."
-SUDO_STARTUP_CMD=$(echo "$PM2_STARTUP_CMD" | grep "sudo env PATH=")
 
+# Check if the generated command contains the expected "sudo" structure
+SUDO_STARTUP_CMD=$(echo "$PM2_STARTUP_CMD" | grep "sudo env PATH=")
 
 echo ""
 echo "------------------------------------------------------------------"
@@ -181,13 +187,16 @@ echo "--- MANUAL STEP REQUIRED ---"
 echo ""
 echo "To make the app start automatically on server reboots, you MUST run the following command manually *after* this script finishes:"
 echo ""
-# Print the extracted sudo command if found, otherwise print the full output
+# Print the extracted sudo command if found, otherwise print the full output and a generic fallback
 if [ -n "$SUDO_STARTUP_CMD" ]; then
     echo "    $SUDO_STARTUP_CMD"
 else
-    echo "Could not automatically determine the sudo command. Please consult the PM2 documentation or manually run:"
+    echo "Could not automatically determine the exact sudo command. Please consult the PM2 documentation or try manually running:"
+    echo "    sudo pm2 startup" # Simpler fallback, might work
+    echo "Or the more specific command often seen:"
     echo "    sudo env PATH=\$PATH:/usr/bin /usr/local/lib/node_modules/pm2/bin/pm2 startup systemd -u \$(whoami) --hp \$HOME"
-    echo "Full PM2 startup output was:"
+    echo ""
+    echo "Full output from 'pm2 startup' was:"
     echo "$PM2_STARTUP_CMD"
 fi
 echo ""
