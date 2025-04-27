@@ -4,6 +4,8 @@ This repository contains a template for a Node.js application integrated with Op
 
 The backend is pre-configured to use the `google/gemini-2.5-flash-preview:thinking` model via OpenRouter and listens for POST requests on `/generate`.
 
+The frontend provides a basic, visually appealing template with a cute cat placeholder, ready for you to build upon.
+
 **Prerequisites:**
 
 *   A server (e.g., Ubuntu 22.04 VPS) with SSH access.
@@ -35,7 +37,7 @@ The backend is pre-configured to use the `google/gemini-2.5-flash-preview:thinki
     *   Clone this GitHub repository (`https://github.com/Daniel-Farmer/Template.git` branch `main`) into the `~/openrouter-app/` directory on your VPS.
     *   Create or update the `.env` file in the cloned directory with your API key and default port.
     *   Install the Node.js dependencies (`npm install`).
-    *   Start your `server.js` application using PM2.
+    *   Start your `server.js` application using PM2 under the name `openrouter-server`.
     *   Configure the UFW firewall to allow traffic on port 3000 (if UFW is active).
 
 3.  **Complete the PM2 Startup Configuration (Crucial Manual Step!):**
@@ -46,8 +48,7 @@ The backend is pre-configured to use the `google/gemini-2.5-flash-preview:thinki
 
 Once the deployment script finishes and you have completed the manual PM2 startup step, your application should be running.
 
-You can access the basic template page via your server's public IP address on port 3000: 
-'http://YOUR_VPS_IP_ADDRESS:3000'
+You can access the basic template page via your server's public IP address on port 3000, http://YOUR_VPS_IP_ADDRESS:3000
 
 (Replace `YOUR_VPS_IP_ADDRESS` with your server's public IP)
 
@@ -57,11 +58,11 @@ The application code will be cloned into the `~/openrouter-app/` directory on th
 
 *   **Project Directory:** `cd ~/openrouter-app/`
 *   **Check Status:** `pm2 status`
-*   **View Logs:** `pm2 logs openrouter-blank-app` (or the project name specified in package.json)
-*   **Restart:** `pm2 restart openrouter-blank-app`
-*   **Stop:** `pm2 stop openrouter-blank-app`
-*   **Edit Code:** Navigate to the project directory (`cd ~/openrouter-app/`) and edit the files (e.g., `nano public/index.html`). After editing, restart the app (`pm2 restart openrouter-blank-app`).
-*   **Update Code from GitHub:** If you update the code in your public repository (and commit/push to the `main` branch), users can update their local copy by navigating to the project directory: `cd ~/openrouter-app/ && git pull origin main` (replace `main` with your branch), then reinstall dependencies if `package.json` changed (`npm install`), and finally restart the app (`pm2 restart openrouter-blank-app`).
+*   **View Logs:** `pm2 logs openrouter-server` (or the process name defined in the script)
+*   **Restart:** `pm2 restart openrouter-server`
+*   **Stop:** `pm2 stop openrouter-server`
+*   **Edit Code:** Navigate to the project directory (`cd ~/openrouter-app/`) and edit the files (e.g., `nano public/index.html`). After editing, restart the app (`pm2 restart openrouter-server`).
+*   **Update Code from GitHub:** If you update the code in your public repository (and commit/push to the `main` branch), users can update their local copy by navigating to the project directory: `cd ~/openrouter-app/ && git pull origin main` (replace `main` with your branch), then reinstall dependencies if `package.json` changed (`npm install`), and finally restart the app (`pm2 restart openrouter-server`).
 
 **Customization:**
 
