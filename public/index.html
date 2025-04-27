@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenRouter AI App (Template)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Your custom content goes here -->
+        <p>This is a blank template. Edit public/index.html, public/style.css, and public/script.js to build your frontend.</p>
+        <p>The backend is configured to listen for POST requests on /generate with a 'prompt' in the body.</p>
+    </div>
+    <!-- The popup overlay is still here in case the backend sends an error -->
+    <div id="popupOverlay">
+        <div id="popupContent">
+            <span id="closePopup">×</span>
+            <h2>Notification</h2>
+            <p id="aiResponseText"></p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
