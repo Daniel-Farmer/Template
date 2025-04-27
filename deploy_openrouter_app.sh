@@ -40,7 +40,7 @@ echo "Installing necessary system packages (Node.js, npm, PM2, git, unzip)..."
 echo "(This may take a few minutes)"
 
 # Check and install Node.js and npm
-if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+if ! command -v node &> /dev/null || ! command -v npm &> /dev-null; then
     echo "Node.js and npm not found. Installing Node.js v20..."
     # Add NodeSource repository for Node.js 20.x
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -146,7 +146,7 @@ PROJECT_NAME="$GITHUB_REPO_NAME" # Default to repo name
 if [ -f package.json ]; then
     # Use node to parse package.json and get the name field
     # Handle potential errors during JSON parsing
-    JSON_NAME=$(node -e "try { console.log(require('./package.json').name) } catch(e) { process.exit(1) }" 2>/dev/null)
+    JSON_NAME=$(node -p "try { console.log(require('./package.json').name) } catch(e) { process.exit(1) }" 2>/dev/null)
     if [ -n "$JSON_NAME" ]; then # Check if JSON_NAME is not empty
         PROJECT_NAME="$JSON_NAME"
         echo "Using project name '$PROJECT_NAME' from package.json for PM2."
@@ -160,9 +160,9 @@ echo "Starting application '$PROJECT_NAME' with PM2 from $TARGET_DIR..."
 # Kill any existing PM2 process with the same name
 pm2 delete "$PROJECT_NAME" 2>/dev/null || true
 # Start the app using node interpreter with necessary flags for ES modules
-# Use --force-compat with pm2 for better compatibility with newer Node.js versions
+# REMOVED: --force-compat
 if [ -f server.js ]; then
-    pm2 start server.js --name "$PROJECT_NAME" --cwd "$TARGET_DIR" --interpreter node --interpreter-args "--experimental-json-modules --no-warnings" --force-compat -- "$@" # Pass script args
+    pm2 start server.js --name "$PROJECT_NAME" --cwd "$TARGET_DIR" --interpreter node --interpreter-args "--experimental-json-modules --no-warnings" -- "$@" # Pass script args
     echo "Application started with PM2."
 else
     echo "Error: server.js not found in $TARGET_DIR. Cannot start application. Exiting."
@@ -178,7 +178,7 @@ echo "Configuring PM2 for startup on boot..."
 # Ensure the command is generated correctly for systemd
 PM2_STARTUP_CMD=$(env PATH=$PATH:/usr/bin /usr/local/lib/node_modules/pm2/bin/pm2 startup systemd -u $(whoami) --hp $HOME 2>&1) # Generate systemd startup command for current user
 
-# Check if the generated command contains the expected "sudo" structure
+# Extract the actual sudo command from the output, looks like "sudo env PATH=..."
 SUDO_STARTUP_CMD=$(echo "$PM2_STARTUP_CMD" | grep "sudo env PATH=")
 
 echo ""
