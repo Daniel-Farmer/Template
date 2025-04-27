@@ -23,15 +23,19 @@ app.use(express.static(path.join(__dirname, 'public')));
 // --- OpenRouter Configuration ---
 const openrouterApiKey = process.env.OPENROUTER_API_KEY;
 
-if (!openrouterApiKey) {
-    console.error("Error: OPENROUTER_API_KEY not found in .env file or environment variables.");
-    console.error("Please set OPENROUTER_API_KEY to your OpenRouter API key.");
-    process.exit(1); // Exit if API key is not set
+if (!openrouterApiKey || openrouterApiKey === 'sk-or-..._YOUR_KEY_HERE') {
+    console.error("Error: OPENROUTER_API_KEY not found or is the default placeholder in your .env file.");
+    console.error("Please set OPENROUTER_API_KEY to your actual OpenRouter API key.");
+    // In a real app, you might want a more graceful failure or shutdown
+    // For this example, we'll add a check before the API call
+} else {
+     console.log("OpenRouter API Key loaded successfully.");
 }
+
 
 const openai = new OpenAI({ // Use OpenAI SDK pointing to OpenRouter
     baseURL: "https://openrouter.ai/api/v1",
-    apiKey: openrouterApiKey,
+    apiKey: openrouterApiKey, // Use the key from env
     // Optional: Add custom headers for OpenRouter rankings
     defaultHeaders: {
         "HTTP-Referer": "http://localhost:3000", // Set for local testing/direct access. Change for public deployment.
@@ -48,6 +52,11 @@ app.post('/generate', async (req, res) => {
     }
 
     console.log(`Received prompt: "${userPrompt}"`);
+
+    // Ensure API key is loaded and not the placeholder before attempting call
+    if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY === 'sk-or-..._YOUR_KEY_HERE') {
+         return res.status(500).json({ error: { message: 'Server is not configured with OpenRouter API Key. Please check your .env file.' } });
+    }
 
     try {
         // Use the specified model with the thinking variant
@@ -80,7 +89,8 @@ app.post('/generate', async (req, res) => {
         // If neither content nor reasoning, something unexpected happened
         if (!responseToSend) {
              console.error("OpenRouter response did not contain content or reasoning:", completion);
-             return res.status(500).json({ error: { message: 'OpenRouter returned an empty response.' } });
+             // This might be an error state from OpenRouter, check logs
+             return res.status(500).json({ error: { message: 'OpenRouter returned an empty response or an unexpected format.' } });
         }
 
 
@@ -91,8 +101,11 @@ app.post('/generate', async (req, res) => {
     } catch (error) {
         console.error('Error calling OpenRouter API:', error);
         // Attempt to extract a more specific error message if available
-        const errorMessage = error.response?.data?.error?.message || error.message || 'An unexpected error occurred.';
-        res.status(error.status || 500).json({ error: { message: `API Error: ${errorMessage}` } });
+        // Check for specific OpenRouter error structure or fallback to generic
+        const apiErrorMessage = error.response?.data?.error?.message || error.message || 'An unexpected error occurred.';
+        const apiErrorCode = error.response?.status || 500; // Use OpenRouter's HTTP status if available
+
+        res.status(apiErrorCode).json({ error: { message: `API Error: ${apiErrorMessage}` } });
     }
 });
 
