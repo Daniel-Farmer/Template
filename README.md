@@ -46,8 +46,8 @@ The backend is pre-configured to use the `google/gemini-2.5-flash-preview:thinki
 
 Once the deployment script finishes and you have completed the manual PM2 startup step, your application should be running.
 
-You can access the basic template page via your server's public IP address on port 3000:
-http://YOUR_VPS_IP_ADDRESS:3000
+You can access the basic template page via your server's public IP address on port 3000: 
+'http://YOUR_VPS_IP_ADDRESS:3000'
 
 (Replace `YOUR_VPS_IP_ADDRESS` with your server's public IP)
 
