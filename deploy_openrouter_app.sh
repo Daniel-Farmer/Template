@@ -141,6 +141,7 @@ else
 fi
 
 # --- Start application with PM2 ---
+# We use a fixed name for the PM2 process defined at the top of the script
 echo "Starting application '$PM2_PROCESS_NAME' with PM2 from $TARGET_DIR..."
 # Kill any existing PM2 process with the same name
 pm2 delete "$PM2_PROCESS_NAME" 2>/dev/null || true
@@ -148,6 +149,8 @@ pm2 delete "$PM2_PROCESS_NAME" 2>/dev/null || true
 # Use --cwd to specify the working directory
 # The script (server.js) should come before --name
 if [ -f server.js ]; then
+    # Removed --force-compat as it's not needed/supported in PM2 6.x
+    # Use the fixed PM2_PROCESS_NAME
     pm2 start server.js --name "$PM2_PROCESS_NAME" --cwd "$TARGET_DIR" --interpreter node --interpreter-args "--experimental-json-modules --no-warnings" -- "$@" # Pass script args
     echo "Application started with PM2."
 else
