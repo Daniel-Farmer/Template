@@ -12,6 +12,7 @@ GITHUB_BRANCH="main" # Or 'master' if that's your branch
 
 TARGET_DIR="$HOME/openrouter-app" # Consistent target directory
 APP_PORT="3000" # Default port for the Node.js app
+PM2_PROCESS_NAME="openrouter-server" # Fixed name for the PM2 process
 
 # --- Introduction and User Input ---
 echo "--- OpenRouter App Deployment Script ---"
@@ -40,7 +41,7 @@ echo "Installing necessary system packages (Node.js, npm, PM2, git, unzip)..."
 echo "(This may take a few minutes)"
 
 # Check and install Node.js and npm
-if ! command -v node &> /dev/null || ! command -v npm &> /dev-null; then
+if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
     echo "Node.js and npm not found. Installing Node.js v20..."
     # Add NodeSource repository for Node.js 20.x
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -139,30 +140,15 @@ else
     echo "Please ensure your repository contains a package.json file."
 fi
 
-
-# --- Determine Project Name for PM2 ---
-# Get the name from package.json if it exists, fallback to repo name
-PROJECT_NAME="$GITHUB_REPO_NAME" # Default to repo name
-if [ -f package.json ]; then
-    # Use node to parse package.json and get the name field
-    # Handle potential errors during JSON parsing
-    JSON_NAME=$(node -p "try { console.log(require('./package.json').name) } catch(e) { process.exit(1) }" 2>/dev/null)
-    if [ -n "$JSON_NAME" ]; then # Check if JSON_NAME is not empty
-        PROJECT_NAME="$JSON_NAME"
-        echo "Using project name '$PROJECT_NAME' from package.json for PM2."
-    else
-        echo "Could not read project name from package.json. Using default '$PROJECT_NAME' for PM2."
-    fi
-fi
-
 # --- Start application with PM2 ---
-echo "Starting application '$PROJECT_NAME' with PM2 from $TARGET_DIR..."
+echo "Starting application '$PM2_PROCESS_NAME' with PM2 from $TARGET_DIR..."
 # Kill any existing PM2 process with the same name
-pm2 delete "$PROJECT_NAME" 2>/dev/null || true
+pm2 delete "$PM2_PROCESS_NAME" 2>/dev/null || true
 # Start the app using node interpreter with necessary flags for ES modules
-# REMOVED: --force-compat
+# Use --cwd to specify the working directory
+# The script (server.js) should come before --name
 if [ -f server.js ]; then
-    pm2 start server.js --name "$PROJECT_NAME" --cwd "$TARGET_DIR" --interpreter node --interpreter-args "--experimental-json-modules --no-warnings" -- "$@" # Pass script args
+    pm2 start server.js --name "$PM2_PROCESS_NAME" --cwd "$TARGET_DIR" --interpreter node --interpreter-args "--experimental-json-modules --no-warnings" -- "$@" # Pass script args
     echo "Application started with PM2."
 else
     echo "Error: server.js not found in $TARGET_DIR. Cannot start application. Exiting."
@@ -213,7 +199,7 @@ echo ""
 echo "Checking and configuring UFW firewall..."
 # Check if UFW command exists and if UFW is active
 if command -v ufw &> /dev/null && sudo ufw status 2>&1 | grep -q "Status: active"; then
-  echo "UFW is active. Allowing port $APP_PORT ($PROJECT_NAME)..."
+  echo "UFW is active. Allowing port $APP_PORT ($PM2_PROCESS_NAME)..."
   sudo ufw allow $APP_PORT/tcp
   sudo ufw reload
   echo "Firewall rule added. Current UFW status:"
@@ -230,18 +216,18 @@ fi
 # --- Completion Message ---
 echo ""
 echo "--- Deployment Complete ---"
-echo "Your OpenRouter app template ($PROJECT_NAME) should now be running managed by PM2."
+echo "Your OpenRouter app template ($PM2_PROCESS_NAME) should now be running managed by PM2."
 echo "The code is located at: $TARGET_DIR"
 echo ""
 echo "Next Steps:"
 echo "1. **Crucial:** Run the manual 'pm2 startup' command printed above to enable boot persistence."
 echo "2. Check the application status with: pm2 status"
-echo "3. View application logs with: pm2 logs $PROJECT_NAME"
+echo "3. View application logs with: pm2 logs $PM2_PROCESS_NAME"
 echo "4. Access the basic template page via your VPS IP address on port $APP_PORT (e.g., http://YOUR_VPS_IP:$APP_PORT)."
 echo "5. To edit the code, navigate to the project directory: cd $TARGET_DIR"
 echo "6. Edit the frontend files (public/index.html, public/style.css, public/script.js) and the backend file (server.js) in $TARGET_DIR."
-echo "7. After editing code, restart the app: pm2 restart $PROJECT_NAME"
-echo "8. If you want to update the code from GitHub later: cd $TARGET_DIR && git pull origin $GITHUB_BRANCH && npm install (if package.json changed) && pm2 restart $PROJECT_NAME"
+echo "7. After editing code, restart the app: pm2 restart $PM2_PROCESS_NAME"
+echo "8. If you want to update the code from GitHub later: cd $TARGET_DIR && git pull origin $GITHUB_BRANCH && npm install (if package.json changed) && pm2 restart $PM2_PROCESS_NAME"
 echo "9. For production access via a public domain and HTTPS, set up Nginx as a reverse proxy and update the 'HTTP-Referer' header in 'server.js'."
 echo ""
 echo "Thank you for using the deployment script!"
