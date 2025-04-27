@@ -123,6 +123,7 @@ cd "$TARGET_DIR"
 
 
 # --- Create/Update .env file ---
+# We still create this for consistency and if the user wants to run without PM2 later
 echo "Creating or updating .env file in $TARGET_DIR/.env..."
 cat << EOF_ENV > .env
 OPENROUTER_API_KEY=$OPENROUTER_API_KEY
@@ -140,17 +141,39 @@ else
     echo "Please ensure your repository contains a package.json file."
 fi
 
-# --- Start application with PM2 ---
-# We use a fixed name for the PM2 process defined at the top of the script
-echo "Starting application '$PM2_PROCESS_NAME' with PM2 from $TARGET_DIR..."
-# Kill any existing PM2 process with the same name
-pm2 delete "$PM2_PROCESS_NAME" 2>/dev/null || true
-# Start the app using node interpreter with necessary flags for ES modules
-# Use --cwd to specify the working directory
-# The script (server.js) should come before --name
+# --- Remove ecosystem.config.js if it exists from prior attempts ---
+echo "Removing ecosystem.config.js if it exists from previous attempts..."
+rm -f ecosystem.config.js || true
+echo "Cleaned up ecosystem.config.js."
+
+# --- PM2 Cleanup (Stop existing processes and clear save) ---
+echo "Stopping all existing PM2 processes and clearing PM2 save file..."
+# Stop all processes (ignore errors if none are running)
+pm2 stop all || true
+# Clear PM2's dump file which saves process list (ignore errors if file doesn't exist)
+# This is located in the user's home/.pm2 directory
+pm2 save --force 0 || true # force 0 instances saved
+# Also explicitly kill the daemon just in case
+pm2 kill || true
+# Give it a moment
+sleep 2
+echo "PM2 processes stopped and save cleared."
+
+
+# --- Start application with PM2 by passing environment variables ---
+# Set the environment variables in the current shell before calling pm2
+echo "Exporting environment variables for PM2..."
+export OPENROUTER_API_KEY="$OPENROUTER_API_KEY"
+export PORT="$APP_PORT"
+# Node.js will pick these up via process.env using the dotenv library in server.js
+
+echo "Starting application '$PM2_PROCESS_NAME' with PM2 from $TARGET_DIR by passing environment variables..."
+
+# Use the start command targeting server.js directly
+# PM2 should inherit the exported environment variables
+# Use --interpreter and --interpreter-args for ES Modules with PM2
 if [ -f server.js ]; then
-    # Removed --force-compat as it's not needed/supported in PM2 6.x
-    # Use the fixed PM2_PROCESS_NAME
+    # Use --interpreter and --interpreter-args
     pm2 start server.js --name "$PM2_PROCESS_NAME" --cwd "$TARGET_DIR" --interpreter node --interpreter-args "--experimental-json-modules --no-warnings" -- "$@" # Pass script args
     echo "Application started with PM2."
 else
@@ -163,8 +186,9 @@ fi
 echo "Configuring PM2 for startup on boot..."
 # Generate the startup script command and tell the user to run it manually with sudo
 # This step often requires user interaction or different sudo context/permissions than the script itself might have.
-# Generate the command specifically for the user who ran the script
+# Generate the command specifically for the user who ran the script (should be root in this /root case)
 # Ensure the command is generated correctly for systemd
+# Use 'whoami' and 'HOME' to get the current user's details correctly
 PM2_STARTUP_CMD=$(env PATH=$PATH:/usr/bin /usr/local/lib/node_modules/pm2/bin/pm2 startup systemd -u $(whoami) --hp $HOME 2>&1) # Generate systemd startup command for current user
 
 # Extract the actual sudo command from the output, looks like "sudo env PATH=..."
@@ -193,7 +217,7 @@ echo "Copy and paste the command above into your terminal and press Enter."
 echo "You may be asked for your password."
 echo "------------------------------------------------------------------"
 echo ""
-# Save the PM2 process list so the startup command has something to restore
+# Save the PM2 process list NOW so the startup command has something to restore when it's run
 # Save from the context of the target directory where the app is
 (cd "$TARGET_DIR" && pm2 save)
 
@@ -227,10 +251,8 @@ echo "1. **Crucial:** Run the manual 'pm2 startup' command printed above to enab
 echo "2. Check the application status with: pm2 status"
 echo "3. View application logs with: pm2 logs $PM2_PROCESS_NAME"
 echo "4. Access the basic template page via your VPS IP address on port $APP_PORT (e.g., http://YOUR_VPS_IP:$APP_PORT)."
-echo "5. To edit the code, navigate to the project directory: cd $TARGET_DIR"
-echo "6. Edit the frontend files (public/index.html, public/style.css, public/script.js) and the backend file (server.js) in $TARGET_DIR."
-echo "7. After editing code, restart the app: pm2 restart $PM2_PROCESS_NAME"
-echo "8. If you want to update the code from GitHub later: cd $TARGET_DIR && git pull origin $GITHUB_BRANCH && npm install (if package.json changed) && pm2 restart $PM2_PROCESS_NAME"
-echo "9. For production access via a public domain and HTTPS, set up Nginx as a reverse proxy and update the 'HTTP-Referer' header in 'server.js'."
+echo ""
+echo "To edit the code, navigate to the project directory: cd $TARGET_DIR"
+echo "To restart the app after code changes: pm2 restart $PM2_PROCESS_NAME"
 echo ""
 echo "Thank you for using the deployment script!"
